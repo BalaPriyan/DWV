@@ -22,46 +22,78 @@ class SoundEngine:
         self.on_audio_captured = None
 
     def _audio_callback(self, indata, frames, time, status):
+        try:
+            if status:
+                print(f"Audio status warning: {status}")
 
-        volume = np.linalg.norm(indata)
+            if indata is None or len(indata) == 0:
+                return
 
-        if volume > self.silence_threshold:
-            if not self.is_recording:
-                print("Start speaking...")
-                self.is_recording = True
-                self.audio_buffer = []
+            volume = np.linalg.norm(indata)
 
-            self.audio_buffer.append(indata.copy())
-            self.silence_counter = 0
-
-        else:
-            if self.is_recording:
-                self.silence_counter += frames / self.samplerate
-                self.audio_buffer.append(indata.copy())
-
-                if self.silence_counter > self.silence_duration:
-                    print("Stop recording")
-
-                    full_audio = np.concatenate(self.audio_buffer, axis=0)
-
-                    if self.on_audio_captured:
-                        self.on_audio_captured(full_audio)
-
-                    # reset
+            if volume > self.silence_threshold:
+                if not self.is_recording:
+                    print("Start speaking...")
+                    self.is_recording = True
                     self.audio_buffer = []
-                    self.is_recording = False
-                    self.silence_counter = 0
+
+                self.audio_buffer.append(indata.copy())
+                self.silence_counter = 0
+
+            else:
+                if self.is_recording:
+                    self.silence_counter += frames / self.samplerate
+                    self.audio_buffer.append(indata.copy())
+
+                    if self.silence_counter > self.silence_duration:
+                        print("Stop recording")
+
+                        if len(self.audio_buffer) == 0:
+                            print("Empty buffer, skipping")
+                            return
+
+                        full_audio = np.concatenate(self.audio_buffer, axis=0)
+
+                        if self.on_audio_captured:
+                            try:
+                                self.on_audio_captured(full_audio)
+                            except Exception as e:
+                                print(f"Handler error: {e}")
+
+                        self.audio_buffer = []
+                        self.is_recording = False
+                        self.silence_counter = 0
+
+        except Exception as e:
+            print(f"Callback error: {e}")
+            self._reset_state()
+
+    def _reset_state(self):
+        self.audio_buffer = []
+        self.is_recording = False
+        self.silence_counter = 0
 
     def start(self):
         print("SoundEngine started...")
 
-        with sd.InputStream(callback=self._audio_callback,
-                            channels=self.channels,
-                            samplerate=self.samplerate):
-            while True:
-                sd.sleep(1000)
+        try:
+            with sd.InputStream(callback=self._audio_callback,
+                                channels=self.channels,
+                                samplerate=self.samplerate):
+                while True:
+                    sd.sleep(1000)
 
+        except Exception as e:
+            print(f"Failed to start audio stream: {e}")
 
     def save_audio(self, audio, filename="output.wav"):
-        wav.write(filename, self.samplerate, audio)
-        print(f"Saved: {filename}")
+        try:
+            if audio is None or len(audio) == 0:
+                print("No audio to save")
+                return
+
+            wav.write(filename, self.samplerate, audio)
+            print(f"Saved: {filename}")
+
+        except Exception as e:
+            print(f"Failed to save audio: {e}")
