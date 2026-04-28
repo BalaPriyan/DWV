@@ -2,10 +2,11 @@
 System perform a real action by your voice.
 
 ## Tools Used:
+- SoundDevice - Capture Sound
 - Whisper - STT
 - OpenClaw - Action
 - coqui TTS - TTS
-- Porcupine - WakeWord
+- OpenWakeWord - WakeWord
 
 ## Tech Stack:
 - Python 3.11.9

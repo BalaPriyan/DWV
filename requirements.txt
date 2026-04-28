@@ -1,0 +1,5 @@
+sounddevice #STT
+numpy #STT support package
+scipy # Audio Rec To Audio Wav File
+openai-whisper
+torch
