@@ -1,28 +1,24 @@
 import numpy as np
 import whisper
+import torch
+import logging
 
+logger = logging.getLogger(__name__)
 
 class WhisperEngine:
     def __init__(self, model_size="tiny"):
         try:
-            print("Loading Whisper model...")
-            self.model = whisper.load_model(model_size)
-            print("Whisper model loaded")
+            logger.info("Loading Whisper model...")
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            self.model = whisper.load_model(model_size, device=self.device)
+            logger.info(f"Whisper model loaded on {self.device}")
         except Exception as e:
             raise RuntimeError(f"Failed to load Whisper model: {e}")
 
     def transcribe(self, audio):
         try:
-            if audio is None:
-                print("Audio is None")
-                return None
-
-            if not isinstance(audio, np.ndarray):
-                print("Invalid audio type")
-                return None
-
-            if audio.size == 0:
-                print("Empty audio buffer")
+            if audio is None or not isinstance(audio, np.ndarray) or audio.size == 0:
+                logger.warning("Invalid or empty audio buffer passed to Whisper.")
                 return None
 
             # Flatten audio
@@ -33,27 +29,28 @@ class WhisperEngine:
             if max_val > 0:
                 audio = audio / max_val
             else:
-                print("Silent audio detected")
+                logger.debug("Silent audio detected")
                 return None
 
             # Convert dtype
             audio = audio.astype("float32")
 
-            # Transcribe
-            result = self.model.transcribe(audio)
+            # Transcribe (fp16 is only supported on CUDA)
+            fp16 = torch.cuda.is_available()
+            result = self.model.transcribe(audio, fp16=fp16)
 
             if not result or "text" not in result:
-                print("Whisper returned invalid result")
+                logger.warning("Whisper returned invalid result")
                 return None
 
             text = result["text"].strip()
 
             if not text or text == "..." or len(text) < 2:
-                print("Ignored noise")
+                logger.debug("Ignored noise")
                 return None
 
             return text
 
         except Exception as e:
-            print(f"Transcription error: {e}")
+            logger.error(f"Transcription error: {e}")
             return None

@@ -1,30 +1,53 @@
 import sounddevice as sd
 import numpy as np
 import scipy.io.wavfile as wav
+import queue
+import logging
 
+logger = logging.getLogger(__name__)
 
 class SoundEngine:
     def __init__(self,
                  samplerate=16000,
                  channels=1,
-                 silence_threshold=0.01,
                  silence_duration=1.0):
 
         self.samplerate = samplerate
         self.channels = channels
-        self.silence_threshold = silence_threshold
+        self.silence_threshold = 0.01 # Will be calibrated
         self.silence_duration = silence_duration
 
         self.audio_buffer = []
         self.is_recording = False
         self.silence_counter = 0
 
-        self.on_audio_captured = None
+        self.audio_queue = queue.Queue()
+        self.is_running = False
+
+    def calibrate(self, duration=2.0):
+        logger.info(f"Calibrating ambient noise for {duration} seconds... Please stay quiet.")
+        volumes = []
+        
+        def calibration_callback(indata, frames, time, status):
+            if indata is not None and len(indata) > 0:
+                volumes.append(np.linalg.norm(indata))
+                
+        with sd.InputStream(callback=calibration_callback, channels=self.channels, samplerate=self.samplerate):
+            sd.sleep(int(duration * 1000))
+            
+        if volumes:
+            # Set threshold slightly above the 95th percentile of ambient noise
+            avg_noise = np.percentile(volumes, 95)
+            self.silence_threshold = max(0.005, avg_noise * 1.5)
+            logger.info(f"Calibration complete. Noise threshold set to: {self.silence_threshold:.4f}")
+        else:
+            logger.warning("Calibration failed, using default threshold.")
+            self.silence_threshold = 0.01
 
     def _audio_callback(self, indata, frames, time, status):
         try:
             if status:
-                print(f"Audio status warning: {status}")
+                logger.warning(f"Audio status warning: {status}")
 
             if indata is None or len(indata) == 0:
                 return
@@ -33,7 +56,6 @@ class SoundEngine:
 
             if volume > self.silence_threshold:
                 if not self.is_recording:
-                    print("Start speaking...")
                     self.is_recording = True
                     self.audio_buffer = []
 
@@ -46,26 +68,17 @@ class SoundEngine:
                     self.audio_buffer.append(indata.copy())
 
                     if self.silence_counter > self.silence_duration:
-                        print("Stop recording")
-
-                        if len(self.audio_buffer) == 0:
-                            print("Empty buffer, skipping")
-                            return
-
-                        full_audio = np.concatenate(self.audio_buffer, axis=0)
-
-                        if self.on_audio_captured:
-                            try:
-                                self.on_audio_captured(full_audio)
-                            except Exception as e:
-                                print(f"Handler error: {e}")
+                        if len(self.audio_buffer) > 0:
+                            full_audio = np.concatenate(self.audio_buffer, axis=0)
+                            # Put the audio block into the queue for the consumer
+                            self.audio_queue.put(full_audio)
 
                         self.audio_buffer = []
                         self.is_recording = False
                         self.silence_counter = 0
 
         except Exception as e:
-            print(f"Callback error: {e}")
+            logger.error(f"Callback error: {e}")
             self._reset_state()
 
     def _reset_state(self):
@@ -74,26 +87,28 @@ class SoundEngine:
         self.silence_counter = 0
 
     def start(self):
-        print("SoundEngine started...")
+        self.calibrate()
+        logger.info("SoundEngine started listening...")
+        
+        self.is_running = True
+        self.stream = sd.InputStream(callback=self._audio_callback,
+                                     channels=self.channels,
+                                     samplerate=self.samplerate)
+        self.stream.start()
 
-        try:
-            with sd.InputStream(callback=self._audio_callback,
-                                channels=self.channels,
-                                samplerate=self.samplerate):
-                while True:
-                    sd.sleep(1000)
+    def stop(self):
+        self.is_running = False
+        if hasattr(self, 'stream'):
+            self.stream.stop()
+            self.stream.close()
+        logger.info("SoundEngine stopped.")
 
-        except Exception as e:
-            print(f"Failed to start audio stream: {e}")
-
-    def save_audio(self, audio, filename="output.wav"):
-        try:
-            if audio is None or len(audio) == 0:
-                print("No audio to save")
-                return
-
-            wav.write(filename, self.samplerate, audio)
-            print(f"Saved: {filename}")
-
-        except Exception as e:
-            print(f"Failed to save audio: {e}")
+    def get_audio(self):
+        """Generator that yields audio segments as they are recorded."""
+        while self.is_running:
+            try:
+                # Block for a short time to allow checking is_running
+                audio = self.audio_queue.get(timeout=0.5)
+                yield audio
+            except queue.Empty:
+                continue

@@ -3,3 +3,7 @@ numpy #STT support package
 scipy # Audio Rec To Audio Wav File
 openai-whisper
 torch
+ollama # Local LLM integration
+requests # API calls to LLM providers
+python-dotenv # Environment variable loading
+psutil
