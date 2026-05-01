@@ -3,7 +3,6 @@ import json
 import logging
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
 load_dotenv()
 
 from LLMConnect.openRouterEngine import openRouterEngine
@@ -32,11 +31,9 @@ If the user is just asking a question or making conversation:
 }
 """
         
-        # Determine the active provider from ENV, default to ollama
         self.provider = os.environ.get("ACTIVE_PROVIDER", "ollama").lower()
         logger.info(f"Action Engine initializing with provider: {self.provider}")
         
-        # Instantiate the correct engine
         if self.provider == "openrouter":
             self.engine = openRouterEngine(self.system_prompt)
         else:
@@ -45,6 +42,8 @@ If the user is just asking a question or making conversation:
     def execute(self, text):
         logger.debug(f"ActionEngine routing text to {self.provider} engine...")
         raw_response = self.engine.generate(text)
+        
+        logger.info(f"LLM Raw Output: {raw_response}")
         
         # Clean up potential markdown formatting the LLM might have added
         cleaned_response = raw_response.strip()

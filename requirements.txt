@@ -7,3 +7,4 @@ ollama # Local LLM integration
 requests # API calls to LLM providers
 python-dotenv # Environment variable loading
 psutil
+TTS # Coqui Text-to-Speech

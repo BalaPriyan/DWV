@@ -3,15 +3,21 @@ import numpy as np
 import scipy.io.wavfile as wav
 import queue
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
 class SoundEngine:
     def __init__(self,
-                 samplerate=16000,
+                 samplerate=None,
                  channels=1,
-                 silence_duration=1.0):
+                 silence_duration=None):
 
+        if samplerate is None:
+            samplerate = int(os.environ.get("SOUND_SAMPLERATE", 16000))
+        if silence_duration is None:
+            silence_duration = float(os.environ.get("SOUND_SILENCE_DURATION", 1.0))
+            
         self.samplerate = samplerate
         self.channels = channels
         self.silence_threshold = 0.01 # Will be calibrated
@@ -23,6 +29,7 @@ class SoundEngine:
 
         self.audio_queue = queue.Queue()
         self.is_running = False
+        self.is_paused = False
 
     def calibrate(self, duration=2.0):
         logger.info(f"Calibrating ambient noise for {duration} seconds... Please stay quiet.")
@@ -45,6 +52,9 @@ class SoundEngine:
             self.silence_threshold = 0.01
 
     def _audio_callback(self, indata, frames, time, status):
+        if self.is_paused:
+            return
+            
         try:
             if status:
                 logger.warning(f"Audio status warning: {status}")
@@ -112,3 +122,21 @@ class SoundEngine:
                 yield audio
             except queue.Empty:
                 continue
+
+    def pause(self):
+        """Pause recording to prevent hearing itself (echo cancellation)"""
+        logger.debug("SoundEngine paused.")
+        self.is_paused = True
+
+    def resume(self):
+        """Resume recording and flush the queue of any residual echoes"""
+        while not self.audio_queue.empty():
+            try:
+                self.audio_queue.get_nowait()
+            except queue.Empty:
+                break
+        
+        self._reset_state()
+        
+        self.is_paused = False
+        logger.debug("SoundEngine resumed.")

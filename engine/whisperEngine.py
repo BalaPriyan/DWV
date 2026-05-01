@@ -2,13 +2,17 @@ import numpy as np
 import whisper
 import torch
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
 class WhisperEngine:
-    def __init__(self, model_size="tiny"):
+    def __init__(self, model_size=None):
+        if model_size is None:
+            model_size = os.environ.get("WHISPER_MODEL", "tiny")
+            
         try:
-            logger.info("Loading Whisper model...")
+            logger.info(f"Loading Whisper model ({model_size})...")
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
             self.model = whisper.load_model(model_size, device=self.device)
             logger.info(f"Whisper model loaded on {self.device}")

@@ -1,16 +1,41 @@
+import os
 import logging
 import threading
+import sys
+from dotenv import load_dotenv
+
+load_dotenv()
+
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger("DWV_Main")
+
+logger.info("Starting DWV initialization...")
+
+espeak_path = os.environ.get("ESPEAK_PATH", r"C:\Program Files\eSpeak NG")
+os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = os.path.join(espeak_path, "libespeak-ng.dll")
+os.environ["PHONEMIZER_ESPEAK_PATH"] = os.path.join(espeak_path, "espeak-ng.exe")
+os.environ["PATH"] = espeak_path + os.pathsep + os.environ.get("PATH", "")
+
 from engine.soundEngine import SoundEngine
 from engine.whisperEngine import WhisperEngine
 from engine.actionEngine import ActionEngine
+from engine.ttsEngine import TTSEngine
 
-# Setup basic logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger("DWV_Main")
-
+logger.info("Initializing SoundEngine...")
 engine = SoundEngine()
+
+logger.info("Initializing WhisperEngine...")
 whisper_engine = WhisperEngine()
+
+logger.info("Initializing ActionEngine...")
 action_engine = ActionEngine()
+
+logger.info("Initializing TTSEngine (this may take a moment)...")
+tts_engine = TTSEngine()
 
 last_text = None
 
@@ -33,9 +58,13 @@ def consumer_loop():
             last_text = text
             logger.info(f"You said: {text}")
             
-            # Send text to Ollama-powered Action Engine
-            ai_response = action_engine.execute(text)
-            logger.info(f"Agent Reply: {ai_response}")
+            ai_response_text = action_engine.execute(text)
+            logger.info(f"Agent Reply: {ai_response_text}")
+
+            if ai_response_text:
+                engine.pause()
+                tts_engine.speak(ai_response_text)
+                engine.resume()
 
         except Exception as e:
             logger.error(f"Error: {e}")
