@@ -1,9 +1,9 @@
 import sounddevice as sd
 import numpy as np
-import scipy.io.wavfile as wav
 import queue
 import logging
 import os
+from exceptions import AudioError
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +90,7 @@ class SoundEngine:
         except Exception as e:
             logger.error(f"Callback error: {e}")
             self._reset_state()
+            raise AudioError(f"SoundEngine callback failed: {e}")
 
     def _reset_state(self):
         self.audio_buffer = []

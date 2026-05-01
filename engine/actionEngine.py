@@ -1,12 +1,14 @@
 import os
 import json
 import logging
+import subprocess
 from dotenv import load_dotenv
 
 load_dotenv()
 
 from LLMConnect.openRouterEngine import openRouterEngine
 from LLMConnect.ollamaEngine import ollamaEngine
+from exceptions import CommandExecutionError
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,10 @@ If the user is just asking a question or making conversation:
     "message": "Hello! I am doing well."
 }
 """
+        self.messages = [
+            {"role": "system", "content": self.system_prompt}
+        ]
+        self.max_history = 10
         
         self.provider = os.environ.get("ACTIVE_PROVIDER", "ollama").lower()
         logger.info(f"Action Engine initializing with provider: {self.provider}")
@@ -40,10 +46,14 @@ If the user is just asking a question or making conversation:
             self.engine = ollamaEngine(self.system_prompt)
 
     def execute(self, text):
+        self.messages.append({"role": "user", "content": text})
+        
         logger.debug(f"ActionEngine routing text to {self.provider} engine...")
-        raw_response = self.engine.generate(text)
+        raw_response = self.engine.generate(self.messages)
         
         logger.info(f"LLM Raw Output: {raw_response}")
+        
+        self.messages.append({"role": "assistant", "content": raw_response})
         
         # Clean up potential markdown formatting the LLM might have added
         cleaned_response = raw_response.strip()
@@ -64,10 +74,28 @@ If the user is just asking a question or making conversation:
                 command = data.get("command")
                 if command:
                     logger.warning(f"EXECUTING SYSTEM COMMAND: {command}")
-                    os.system(command)
+                    try:
+                        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30)
+                        
+                        if result.returncode == 0:
+                            feedback = f"Command succeeded. Output: {result.stdout}"
+                        else:
+                            feedback = f"Command failed with error: {result.stderr}"
+                            raise CommandExecutionError(feedback)
+                            
+                        logger.info(feedback)
+                        self.messages.append({"role": "system", "content": f"EXECUTION_RESULT: {feedback}"})
+                        
+                    except Exception as e:
+                        error_msg = f"Failed to execute command: {e}"
+                        logger.error(error_msg)
+                        self.messages.append({"role": "system", "content": f"EXECUTION_ERROR: {error_msg}"})
                 else:
                     logger.error("Action was execute, but no command provided.")
                     
+            if len(self.messages) > self.max_history * 2:
+                self.messages = [self.messages[0]] + self.messages[-(self.max_history * 2):]
+                
             return message
             
         except json.JSONDecodeError:

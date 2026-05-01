@@ -1,6 +1,5 @@
 import os
 import logging
-import threading
 import sys
 from dotenv import load_dotenv
 
@@ -24,6 +23,7 @@ from engine.soundEngine import SoundEngine
 from engine.whisperEngine import WhisperEngine
 from engine.actionEngine import ActionEngine
 from engine.ttsEngine import TTSEngine
+from exceptions import DWVError
 
 logger.info("Initializing SoundEngine...")
 engine = SoundEngine()
@@ -66,8 +66,10 @@ def consumer_loop():
                 tts_engine.speak(ai_response_text)
                 engine.resume()
 
+        except DWVError as de:
+            logger.error(f"Internal DWV Error: {de}")
         except Exception as e:
-            logger.error(f"Error: {e}")
+            logger.error(f"Unexpected Error: {e}")
 
 if __name__ == "__main__":
     try:

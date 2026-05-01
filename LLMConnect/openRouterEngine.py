@@ -17,7 +17,7 @@ class openRouterEngine:
         if not self.api_key:
             logger.warning("OPENROUTER_API_KEY is not set in environment.")
 
-    def generate(self, text):
+    def generate(self, messages):
         if not self.api_key:
             return "Error: OpenRouter API Key is missing."
 
@@ -30,10 +30,7 @@ class openRouterEngine:
 
         payload = {
             "model": self.model,
-            "messages": [
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": text}
-            ]
+            "messages": messages
         }
 
         try:

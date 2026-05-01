@@ -4,6 +4,8 @@ import torch
 import logging
 import os
 
+from exceptions import TranscriptionError
+
 logger = logging.getLogger(__name__)
 
 class WhisperEngine:
@@ -17,7 +19,7 @@ class WhisperEngine:
             self.model = whisper.load_model(model_size, device=self.device)
             logger.info(f"Whisper model loaded on {self.device}")
         except Exception as e:
-            raise RuntimeError(f"Failed to load Whisper model: {e}")
+            raise TranscriptionError(f"Failed to load Whisper model: {e}")
 
     def transcribe(self, audio):
         try:

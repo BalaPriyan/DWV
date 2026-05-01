@@ -3,6 +3,7 @@ import torch
 import os
 import sounddevice as sd
 from TTS.api import TTS
+from exceptions import TTSError
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ class TTSEngine:
         except Exception as e:
             logger.error(f"Failed to initialize TTSEngine: {e}")
             self.tts = None
+            raise TTSError(f"TTS Initialization failed: {e}")
 
     def speak(self, text):
         if not self.tts:
@@ -47,3 +49,4 @@ class TTSEngine:
             
         except Exception as e:
             logger.error(f"TTS Synthesis error: {e}")
+            raise TTSError(f"Speech synthesis failed: {e}")

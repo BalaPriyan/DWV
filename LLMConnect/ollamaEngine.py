@@ -9,21 +9,16 @@ class ollamaEngine:
         self.model = os.environ.get("OLLAMA_MODEL", "qwen3.5")
         self.system_prompt = system_prompt
 
-    def generate(self, text):
+    def generate(self, messages):
         logger.info(f"Querying Ollama ({self.model})...")
         try:
-            response = ollama.chat(model=self.model, messages=[
-                {
-                    'role': 'system',
-                    'content': self.system_prompt
-                },
-                {
-                    'role': 'user',
-                    'content': text
-                }
-            ])
+            response = ollama.chat(model=self.model, messages=messages)
             
-            ai_reply = response.get('message', {}).get('content', '')
+            if hasattr(response, 'message'):
+                ai_reply = response.message.content
+            else:
+                ai_reply = response.get('message', {}).get('content', '')
+                
             return ai_reply.strip()
             
         except Exception as e:
