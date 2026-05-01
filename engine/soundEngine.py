@@ -90,7 +90,6 @@ class SoundEngine:
         except Exception as e:
             logger.error(f"Callback error: {e}")
             self._reset_state()
-            raise AudioError(f"SoundEngine callback failed: {e}")
 
     def _reset_state(self):
         self.audio_buffer = []

@@ -5,13 +5,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 class ollamaEngine:
-    def __init__(self, system_prompt):
-        self.model = os.environ.get("OLLAMA_MODEL", "qwen3.5")
-        self.system_prompt = system_prompt
+    def __init__(self):
+        self.model = os.environ.get("OLLAMA_MODEL", "qwen2.5")
 
-    def generate(self, messages):
+    def generate(self, messages, stream=False):
         logger.info(f"Querying Ollama ({self.model})...")
         try:
+            if stream:
+                return ollama.chat(model=self.model, messages=messages, stream=True)
+                
             response = ollama.chat(model=self.model, messages=messages)
             
             if hasattr(response, 'message'):

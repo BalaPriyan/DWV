@@ -1,6 +1,26 @@
 import os
 import logging
 import sys
+import torch
+import transformers
+import transformers.utils.import_utils
+import transformers.pytorch_utils
+from packaging import version
+
+if not hasattr(transformers.utils.import_utils, "is_torch_greater_or_equal"):
+    def is_torch_greater_or_equal(version_threshold):
+        return version.parse(torch.__version__) >= version.parse(version_threshold)
+    transformers.utils.import_utils.is_torch_greater_or_equal = is_torch_greater_or_equal
+
+if not hasattr(transformers.pytorch_utils, "isin_mps_friendly"):
+    transformers.pytorch_utils.isin_mps_friendly = lambda *args, **kwargs: torch.tensor([False])
+
+from engine.soundEngine import SoundEngine
+from engine.whisperEngine import WhisperEngine
+from engine.actionEngine import ActionEngine
+from engine.ttsEngine import TTSEngine
+from exceptions import DWVError
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -19,23 +39,24 @@ os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = os.path.join(espeak_path, "libespeak-n
 os.environ["PHONEMIZER_ESPEAK_PATH"] = os.path.join(espeak_path, "espeak-ng.exe")
 os.environ["PATH"] = espeak_path + os.pathsep + os.environ.get("PATH", "")
 
-from engine.soundEngine import SoundEngine
-from engine.whisperEngine import WhisperEngine
-from engine.actionEngine import ActionEngine
-from engine.ttsEngine import TTSEngine
-from exceptions import DWVError
+try:
+    logger.info("Initializing SoundEngine...")
+    engine = SoundEngine()
 
-logger.info("Initializing SoundEngine...")
-engine = SoundEngine()
+    logger.info("Initializing WhisperEngine...")
+    whisper_engine = WhisperEngine()
 
-logger.info("Initializing WhisperEngine...")
-whisper_engine = WhisperEngine()
+    logger.info("Initializing ActionEngine...")
+    action_engine = ActionEngine()
 
-logger.info("Initializing ActionEngine...")
-action_engine = ActionEngine()
-
-logger.info("Initializing TTSEngine (this may take a moment)...")
-tts_engine = TTSEngine()
+    logger.info("Initializing TTSEngine (this may take a moment)...")
+    tts_engine = TTSEngine()
+except DWVError as e:
+    logger.error(f"FATAL: Failed to initialize engines: {e}")
+    sys.exit(1)
+except Exception as e:
+    logger.error(f"FATAL: Unexpected error during initialization: {e}")
+    sys.exit(1)
 
 last_text = None
 
@@ -43,7 +64,6 @@ def consumer_loop():
     global last_text
     logger.info("Waiting for audio...")
     
-    # engine.get_audio() audio buffers from the thread-safe queue
     for audio in engine.get_audio():
         try:
             logger.info("Processing captured audio...")
@@ -64,6 +84,7 @@ def consumer_loop():
             if ai_response_text:
                 engine.pause()
                 tts_engine.speak(ai_response_text)
+                tts_engine.wait_until_done()
                 engine.resume()
 
         except DWVError as de:

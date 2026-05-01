@@ -41,9 +41,9 @@ If the user is just asking a question or making conversation:
         logger.info(f"Action Engine initializing with provider: {self.provider}")
         
         if self.provider == "openrouter":
-            self.engine = openRouterEngine(self.system_prompt)
+            self.engine = openRouterEngine()
         else:
-            self.engine = ollamaEngine(self.system_prompt)
+            self.engine = ollamaEngine()
 
     def execute(self, text):
         self.messages.append({"role": "user", "content": text})
@@ -55,7 +55,6 @@ If the user is just asking a question or making conversation:
         
         self.messages.append({"role": "assistant", "content": raw_response})
         
-        # Clean up potential markdown formatting the LLM might have added
         cleaned_response = raw_response.strip()
         if cleaned_response.startswith("```json"):
             cleaned_response = cleaned_response[7:]
@@ -63,6 +62,8 @@ If the user is just asking a question or making conversation:
             cleaned_response = cleaned_response[3:]
         if cleaned_response.endswith("```"):
             cleaned_response = cleaned_response[:-3]
+            
+        cleaned_response = cleaned_response.replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
             
         try:
             data = json.loads(cleaned_response.strip())
@@ -81,6 +82,7 @@ If the user is just asking a question or making conversation:
                             feedback = f"Command succeeded. Output: {result.stdout}"
                         else:
                             feedback = f"Command failed with error: {result.stderr}"
+                            message = f"I tried to run that, but there was an error: {result.stderr.splitlines()[0] if result.stderr else 'Unknown error'}"
                             raise CommandExecutionError(feedback)
                             
                         logger.info(feedback)
@@ -90,6 +92,8 @@ If the user is just asking a question or making conversation:
                         error_msg = f"Failed to execute command: {e}"
                         logger.error(error_msg)
                         self.messages.append({"role": "system", "content": f"EXECUTION_ERROR: {error_msg}"})
+                        if not isinstance(e, CommandExecutionError):
+                            message = f"I couldn't execute that command: {e}"
                 else:
                     logger.error("Action was execute, but no command provided.")
                     

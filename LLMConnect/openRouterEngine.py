@@ -6,12 +6,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 class openRouterEngine:
-    def __init__(self, system_prompt):
+    def __init__(self):
         self.api_key = os.environ.get("OPENROUTER_API_KEY")
-        self.model = os.environ.get("OPENROUTER_MODEL", "openai/gpt-5.2")
+        self.model = os.environ.get("OPENROUTER_MODEL", "openai/gpt-3.5-turbo")
         self.site_url = os.environ.get("OPENROUTER_SITE_URL", "")
         self.site_name = os.environ.get("OPENROUTER_SITE_NAME", "")
-        self.system_prompt = system_prompt
         self.invoke_url = "https://openrouter.ai/api/v1/chat/completions"
 
         if not self.api_key:
