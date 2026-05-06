@@ -6,3 +6,4 @@ ollama # Local LLM integration
 requests # API calls to LLM providers
 python-dotenv # Environment variable loading
 TTS # Coqui Text-to-Speech
+chromadb # Vector database for long-term memory

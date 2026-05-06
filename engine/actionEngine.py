@@ -8,6 +8,7 @@ load_dotenv()
 
 from LLMConnect.openRouterEngine import openRouterEngine
 from LLMConnect.ollamaEngine import ollamaEngine
+from engine.memoryEngine import MemoryEngine
 from exceptions import CommandExecutionError
 
 logger = logging.getLogger(__name__)
@@ -44,15 +45,33 @@ If the user is just asking a question or making conversation:
             self.engine = openRouterEngine()
         else:
             self.engine = ollamaEngine()
+            
+        self.memory = MemoryEngine()
 
     def execute(self, text):
-        self.messages.append({"role": "user", "content": text})
+        # Retrieve relevant memories
+        memories = self.memory.retrieve(text)
         
-        logger.debug(f"ActionEngine routing text to {self.provider} engine...")
-        raw_response = self.engine.generate(self.messages)
+        # Build prompt context with memories
+        context_messages = []
+        context_messages.append(self.messages[0]) # System prompt
+        
+        if memories:
+            context_messages.append({
+                "role": "system",
+                "content": f"The following are relevant snippets from past conversations. Use this context if it helps you understand the user better:\n{memories}"
+            })
+            
+        context_messages.extend(self.messages[1:]) # Chat history
+        context_messages.append({"role": "user", "content": text}) # Current query
+        
+        logger.debug(f"ActionEngine routing text to {self.provider} engine with memories...")
+        raw_response = self.engine.generate(context_messages)
         
         logger.info(f"LLM Raw Output: {raw_response}")
         
+        # Update short-term chat history
+        self.messages.append({"role": "user", "content": text})
         self.messages.append({"role": "assistant", "content": raw_response})
         
         cleaned_response = raw_response.strip()
@@ -100,6 +119,9 @@ If the user is just asking a question or making conversation:
             if len(self.messages) > self.max_history * 2:
                 self.messages = [self.messages[0]] + self.messages[-(self.max_history * 2):]
                 
+            # Store this interaction in long-term memory
+            self.memory.store(text, message)
+            
             return message
             
         except json.JSONDecodeError:
